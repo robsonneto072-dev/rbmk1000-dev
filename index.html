@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBMK-1000 Control Console & Reactor Simulator</title>
+    <style>
+        :root {
+            --bg-color: #121915;
+            --panel-bg: #1c2620;
+            --panel-border: #2d3e34;
+            --text-color: #d1ded6;
+            --accent-green: #00ff66;
+            --accent-amber: #ffaa00;
+            --accent-red: #ff3333;
+            --accent-cyan: #00e5ff;
+            --nixie-bg: #090e0b;
+            --nixie-text: #ff5500;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            font-family: 'Segoe UI', Monaco, 'Courier New', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100vh;
+        }
+
+        /* PRESS TO PLAY SPLASH SCREEN */
+        #splash-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 15, 12, 0.95);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+        #splash-screen h1 {
+            color: var(--accent-green);
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(0,255,102,0.5);
+        }
+        .splash-btn {
+            background: var(--accent-green);
+            color: #000;
+            border: none;
+            padding: 14px 28px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0,255,102,0.4);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 15px rgba(0,255,102,0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(0,255,102,0.8); }
+            100% { transform: scale(1); box-shadow: 0 0 15px rgba(0,255,102,0.4); }
+        }
+
+        header {
+            background-color: var(--panel-bg);
+            border: 2px solid var(--panel-border);
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 4px;
+        }
+
+        h1 { font-size: 1.2rem; color: var(--accent-green); letter-spacing: 1px; text-transform: uppercase; }
+        .preset-group { display: flex; gap: 8px; }
+
+        .btn {
+            background: #28372e;
+            color: var(--text-color);
+            border: 1px solid var(--panel-border);
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 3px;
+            font-weight: bold;
+            transition: all 0.15s ease;
+        }
+        .btn:hover { background: #364a3e; color: #fff; }
+        .btn:active { transform: translateY(1px); }
+        .btn-danger { background: #661111; border-color: #992222; color: #ffcccc; }
+        .btn-danger:hover { background: #881515; color: #fff; }
+        .btn-warning { background: #664400; border-color: #996600; color: #ffebcc; }
+        .btn-warning:hover { background: #885500; color: #fff; }
+        .btn-active { background: var(--accent-green); color: #000; border-color: var(--accent-green); }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 340px 1fr 340px;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 2px solid var(--panel-border);
+            padding: 12px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-green);
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nixie-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .nixie-box {
+            background-color: var(--nixie-bg);
+            border: 1px solid #1f2b23;
+            padding: 6px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .nixie-label { font-size: 0.65rem; color: #7a8e83; text-transform: uppercase; }
+        .nixie-val {
+            font-size: 1.1rem;
+            color: var(--nixie-text);
+            font-weight: bold;
+            text-shadow: 0 0 4px rgba(255, 85, 0, 0.6);
+            margin-top: 2px;
+        }
+
+        /* Annunciators */
+        .annunciator-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .annunciator {
+            background: #111814;
+            border: 1px solid #223027;
+            color: #3d5246;
+            font-size: 0.65rem;
+            font-weight: bold;
+            padding: 6px;
+            text-align: center;
+            border-radius: 2px;
+            text-transform: uppercase;
+        }
+        .annunciator.active-red { background: #660000; color: #ff9999; border-color: #ff3333; box-shadow: 0 0 6px #ff3333; }
+        .annunciator.active-amber { background: #553300; color: #ffcc66; border-color: #ff9900; box-shadow: 0 0 6px #ff9900; }
+
+        /* Rod Controls (Left Column, below SCRAM) */
+        .rod-group {
+            background: #151f1a;
+            border: 1px solid #25362c;
+            padding: 8px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .rod-header { display: flex; justify-content: space-between; font-size: 0.75rem; }
+        .rod-slider { width: 100%; accent-color: var(--accent-green); cursor: pointer; }
+        .rod-btns { display: flex; gap: 4px; }
+        .rod-btns .btn { flex: 1; padding: 2px 4px; font-size: 0.7rem; }
+
+        /* Emergency Panel */
+        .az5-panel {
+            background: #241414;
+            border: 2px solid #551c1c;
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .az5-btn {
+            background: radial-gradient(circle, #ff3333 0%, #a00000 100%);
+            border: 4px solid #330000;
+            color: #fff;
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.4);
+            text-shadow: 0 1px 2px #000;
+        }
+        .az5-btn:active { transform: scale(0.98); }
+
+        /* Canvas Displays */
+        .canvas-container {
+            position: relative;
+            background: #0d1310;
+            border: 1px solid var(--panel-border);
+            border-radius: 4px;
+            overflow: hidden;
+            flex-grow: 1;
+            min-height: 180px;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 3px;
+            background: #0a0f0c;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid var(--panel-border);
+        }
+
+        .heat-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            color: rgba(255,255,255,0.4);
+            font-weight: bold;
+        }
+
+        .pump-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .pump-card {
+            background: #151f1a;
+            border: 1px solid #223328;
+            padding: 6px;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .pump-card.on { border-color: var(--accent-green); background: #1a2c22; }
+
+        .log-box {
+            background: #090e0b;
+            border: 1px solid var(--panel-border);
+            padding: 8px;
+            font-size: 0.7rem;
+            height: 80px;
+            overflow-y: auto;
+            color: #8fa89b;
+            font-family: monospace;
+            border-radius: 3px;
+        }
+        .log-entry { margin-bottom: 2px; }
+        .log-alert { color: var(--accent-red); }
+        .log-warn { color: var(--accent-amber); }
+
+        .audio-toggle { font-size: 0.75rem; color: #8fa89b; display: flex; align-items: center; gap: 6px; }
+    </style>
+</head>
+<body>
+
+    <!-- PRESS TO PLAY OVERLAY -->
+    <div id="splash-screen" onclick="startSimulator()">
+        <h1>RBMK-1000 Simulator</h1>
+        <button class="splash-btn">PRESS TO PLAY</button>
+        <span style="color: #7a8e83; font-size: 0.8rem;">Click anywhere to initialize console & audio</span>
+    </div>
+
+    <header>
+        <div>
+            <h1>RBMK-1000 Reactor Control Console</h1>
+            <span style="font-size: 0.7rem; color: #7a8e83;">Unit 4 - Chornobyl NPP Simulator</span>
+        </div>
+        <div class="preset-group">
+            <button class="btn" onclick="loadPreset('STEADY')">Steady 1000MWe</button>
+            <button class="btn btn-warning" onclick="loadPreset('XENON_PIT')">1986 Xenon Pit</button>
+            <button class="btn btn-danger" onclick="loadPreset('CRITICAL_RUNAWAY')">Thermal Runaway</button>
+        </div>
+    </header>
+
+    <div class="main-grid">
+        <!-- LEFT PANEL: Emergency Protection & Control Rod Sticks Below -->
+        <div class="panel">
+            <div class="panel-title">Emergency Protection</div>
+
+            <!-- AZ-5 Emergency Section -->
+            <div class="az5-panel">
+                <button class="az5-btn" onclick="pressAZ5()">AZ-5 EMERGENCY SCRAM</button>
+                
+                <div style="width:100%; display:flex; flex-direction:column; gap:4px; margin-top: 4px;">
+                    <button class="btn" id="btn-reset-az5" onclick="resetAZ5()" style="background:#004411; border-color:#00ff66; color:#66ff99;">
+                        RESET AZ-5 SCRAM
+                    </button>
+                    <button class="btn btn-danger" id="btn-toggle-az5-sig" onclick="toggleAZ5SignalCut()">
+                        DISABLE AZ-5 SIGNAL
+                    </button>
+                    <button class="btn btn-warning" id="btn-toggle-interlocks" onclick="toggleAutoInterlocks()">
+                        BYPASS AUTO INTERLOCKS
+                    </button>
+                    <button class="btn btn-danger" id="btn-force-crank" onclick="forceCrankRods()" style="display:none;">
+                        EMERGENCY FORCE CRANK (UNJAM)
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTROL ROD STICKS LOCATED DIRECTLY BELOW SCRAM FOR PC SUPPORT -->
+            <div class="panel-title">Control Rod Drives</div>
+            
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="rod-group">
+                    <div class="rod-header">
+                        <span>Manual (RR)</span>
+                        <span id="txt-rr">85% IN</span>
+                    </div>
+                    <input type="range" id="slider-rr" class="rod-slider" min="0" max="100" value="85" oninput="manualRodChange('rr', this.value)">
+                    <div class="rod-btns">
+                        <button class="btn" onclick="stepRod('rr', -5)">-5%</button>
+                        <button class="btn" onclick="stepRod('rr', 5)">+5%</button>
+                    </div>
+                </div>
+
+                <div class="rod-group">
+                    <div class="rod-header">
+                        <span>Safety (USP)</span>
+                        <span id="txt-usp">90% IN</span>
+                    </div>
+                    <input type="range" id="slider-usp" class="rod-slider" min="0" max="100" value="90" oninput="manualRodChange('usp', this.value)">
+                    <div class="rod-btns">
+                        <button class="btn" onclick="stepRod('usp', -5)">-5%</button>
+                        <button class="btn" onclick="stepRod('usp', 5)">+5%</button>
+                    </div>
+                </div>
+
+                <div class="rod-group">
+                    <div class="rod-header">
+                        <span>Auto (AR)</span>
+                        <span id="txt-ar">80% IN</span>
+                    </div>
+                    <input type="range" id="slider-ar" class="rod-slider" min="0" max="100" value="80" oninput="manualRodChange('ar', this.value)">
+                    <div class="rod-btns">
+                        <button class="btn" onclick="stepRod('ar', -5)">-5%</button>
+                        <button class="btn" onclick="stepRod('ar', 5)">+5%</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-warning" style="flex:1" onclick="bulkRods(0)">Withdraw All (0%)</button>
+                <button class="btn" style="flex:1" onclick="bulkRods(100)">Insert All (100% IN)</button>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL: Primary Schematic, Alarm Panel on top of Thermal Map -->
+        <div class="panel" style="gap:10px;">
+            <div class="panel-title">
+                <span>Primary Coolant & Steam Flow Schematic</span>
+                <label class="audio-toggle">
+                    <input type="checkbox" id="chk-sound" checked> WebAudio Sound
+                </label>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="plantCanvas"></canvas>
+            </div>
+
+            <!-- ALARM ANNUNCIATOR PANEL ON TOP OF THERMAL MAP -->
+            <div class="panel-title">Alarm Annunciator Panel</div>
+            <div class="annunciator-grid">
+                <div class="annunciator" id="ann-az5">AZ-5 ACTIVE</div>
+                <div class="annunciator" id="ann-sigcut">AZ-5 SIG CUT</div>
+                <div class="annunciator" id="ann-jammed">RODS JAMMED</div>
+                <div class="annunciator" id="ann-void">HIGH VOID</div>
+                <div class="annunciator" id="ann-temp">OVERTEMP</div>
+                <div class="annunciator" id="ann-xenon">XENON PIT</div>
+            </div>
+
+            <div class="panel-title">Core Thermal & Flux Spatial Grid (8x8)</div>
+            <div class="heatmap-grid" id="heatmap"></div>
+
+            <div class="panel-title">Console System Log</div>
+            <div class="log-box" id="logBox"></div>
+        </div>
+
+        <!-- RIGHT PANEL: MCPs on top, Turbine Throttle above Telemetry -->
+        <div class="panel">
+            <div class="panel-title">Main Circulation Pumps (MCP 1-8)</div>
+            <div class="pump-grid">
+                <div class="pump-card on" id="pump-1" onclick="togglePump(0)">MCP 1</div>
+                <div class="pump-card on" id="pump-2" onclick="togglePump(1)">MCP 2</div>
+                <div class="pump-card on" id="pump-3" onclick="togglePump(2)">MCP 3</div>
+                <div class="pump-card on" id="pump-4" onclick="togglePump(3)">MCP 4</div>
+                <div class="pump-card on" id="pump-5" onclick="togglePump(4)">MCP 5</div>
+                <div class="pump-card on" id="pump-6" onclick="togglePump(5)">MCP 6</div>
+                <div class="pump-card on" id="pump-7" onclick="togglePump(6)">MCP 7</div>
+                <div class="pump-card on" id="pump-8" onclick="togglePump(7)">MCP 8</div>
+            </div>
+
+            <div class="panel-title">Turbine & Steam Controls</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                    <span>Turbine Throttle Valve</span>
+                    <span id="txt-throttle">100%</span>
+                </div>
+                <input type="range" class="rod-slider" min="0" max="100" value="100" oninput="setThrottle(this.value)">
+            </div>
+
+            <div class="panel-title">Telemetry & Metrics</div>
+            
+            <div class="nixie-grid">
+                <div class="nixie-box">
+                    <span class="nixie-label">Thermal Power</span>
+                    <span class="nixie-val" id="val-pwr">3200 MWt</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Electrical Output</span>
+                    <span class="nixie-val" id="val-mwe">1000 MWe</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Reactivity (ρ)</span>
+                    <span class="nixie-val" id="val-react">+0.0000</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Core Temp</span>
+                    <span class="nixie-val" id="val-temp">285 °C</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Void Fraction</span>
+                    <span class="nixie-val" id="val-void">14.2 %</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Xenon Poison</span>
+                    <span class="nixie-val" id="val-xenon">2.1 %</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Steam Pressure</span>
+                    <span class="nixie-val" id="val-press">65.0 bar</span>
+                </div>
+                <div class="nixie-box">
+                    <span class="nixie-label">Coolant Flow</span>
+                    <span class="nixie-val" id="val-flow">48.0 km³/h</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            power: 3200,
+            mwe: 1000,
+            temp: 285,
+            reactivity: 0.0000,
+            voidFraction: 14.2,
+            xenon: 2.1,
+            pressure: 65.0,
+            flowRate: 48.0,
+            throttle: 100,
+            rr: 85,
+            usp: 90,
+            ar: 80,
+            az5Triggered: false,
+            az5SignalCut: false,
+            autoInterlocksBypassed: false,
+            rodsJammed: false,
+            pumps: [true, true, true, true, true, true, true, true],
+            spatialHeat: new Array(64).fill(285)
+        };
+
+        let audioCtx = null;
+        let simulatorStarted = false;
+
+        function startSimulator() {
+            simulatorStarted = true;
+            const splash = document.getElementById('splash-screen');
+            splash.style.opacity = '0';
+            setTimeout(() => splash.remove(), 300);
+
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            } catch(e){}
+
+            log("RBMK-1000 Control Console online. All systems nominal.");
+            playSynthSound(440, 0.2, 'sine');
+        }
+
+        function playSynthSound(freq, duration, type='sine') {
+            if (!simulatorStarted || !document.getElementById('chk-sound').checked) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        function log(msg, style='') {
+            const box = document.getElementById('logBox');
+            if (!box) return;
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + style;
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            entry.innerText = `[${time}] ${msg}`;
+            box.appendChild(entry);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function manualRodChange(group, val) {
+            val = parseFloat(val);
+            if (state.rodsJammed) {
+                log("ROD DRIVE FAULT: Channels deformed! Use Emergency Force Crank.", "log-alert");
+                updateUI();
+                return;
+            }
+
+            state[group] = val;
+            playSynthSound(300 + (100 - val) * 3, 0.05, 'triangle');
+            updateUI();
+        }
+
+        function stepRod(group, delta) {
+            let nVal = Math.min(100, Math.max(0, state[group] + delta));
+            manualRodChange(group, nVal);
+        }
+
+        function bulkRods(targetVal) {
+            if (state.rodsJammed) {
+                log("ROD DRIVE FAULT: Channels deformed! Use Emergency Force Crank.", "log-alert");
+                return;
+            }
+
+            state.rr = targetVal;
+            state.usp = targetVal;
+            state.ar = targetVal;
+            playSynthSound(targetVal === 100 ? 220 : 580, 0.15, 'square');
+            log(`All control rod groups set to ${targetVal}% IN.`);
+            updateUI();
+        }
+
+        function toggleAZ5SignalCut() {
+            state.az5SignalCut = !state.az5SignalCut;
+            const btn = document.getElementById('btn-toggle-az5-sig');
+            
+            if (state.az5SignalCut) {
+                btn.innerText = "RESTORE AZ-5 SIGNAL";
+                btn.className = "btn btn-active";
+                log("AZ-5 EMERGENCY SCRAM SIGNAL DISCONNECTED!", "log-alert");
+            } else {
+                btn.innerText = "DISABLE AZ-5 SIGNAL";
+                btn.className = "btn btn-danger";
+                log("AZ-5 Emergency SCRAM Signal Restored.", "log-warn");
+            }
+            playSynthSound(440, 0.15, 'sawtooth');
+            updateUI();
+        }
+
+        function toggleAutoInterlocks() {
+            state.autoInterlocksBypassed = !state.autoInterlocksBypassed;
+            const btn = document.getElementById('btn-toggle-interlocks');
+            if (state.autoInterlocksBypassed) {
+                btn.innerText = "RESTORE AUTO INTERLOCKS";
+                btn.className = "btn btn-active";
+                log("AUTOMATIC PROTECTION INTERLOCKS BYPASSED!", "log-alert");
+            } else {
+                btn.innerText = "BYPASS AUTO INTERLOCKS";
+                btn.className = "btn btn-warning";
+                log("Automatic Safety Protection Interlocks Enabled.");
+            }
+            playSynthSound(500, 0.15);
+            updateUI();
+        }
+
+        function pressAZ5() {
+            playSynthSound(800, 0.3, 'sawtooth');
+            
+            if (state.az5SignalCut) {
+                log("AZ-5 BUTTON PRESSED BUT SIGNAL IS DISCONNECTED/DISABLED!", "log-alert");
+                playSynthSound(150, 0.4, 'square');
+                return;
+            }
+
+            log("AZ-5 EMERGENCY SCRAM BUTTON ACTIVATED!", "log-alert");
+            state.az5Triggered = true;
+            updateUI();
+        }
+
+        function resetAZ5() {
+            state.az5Triggered = false;
+            log("AZ-5 SCRAM state reset manually. Rod controls fully unlocked.");
+            playSynthSound(600, 0.2, 'sine');
+            updateUI();
+        }
+
+        function forceCrankRods() {
+            if (!state.rodsJammed) return;
+            
+            playSynthSound(120, 0.2, 'sawtooth');
+            state.rr = Math.min(100, state.rr + 10);
+            state.usp = Math.min(100, state.usp + 10);
+            state.ar = Math.min(100, state.ar + 10);
+
+            log(`Force crank applied: Rods inserted to ${Math.round((state.rr + state.usp + state.ar)/3)}% IN.`, "log-warn");
+
+            if (state.rr >= 100 && state.usp >= 100 && state.ar >= 100) {
+                state.rodsJammed = false;
+                log("Rods fully driven past channel deformation down to 100% IN!", "log-warn");
+            }
+            updateUI();
+        }
+
+        function togglePump(idx) {
+            state.pumps[idx] = !state.pumps[idx];
+            playSynthSound(state.pumps[idx] ? 350 : 220, 0.1);
+            log(`MCP ${idx+1} turned ${state.pumps[idx] ? 'ON' : 'OFF'}.`);
+            updateUI();
+        }
+
+        function setThrottle(val) {
+            state.throttle = parseFloat(val);
+            document.getElementById('txt-throttle').innerText = `${state.throttle}%`;
+        }
+
+        function physicsStep() {
+            if (!simulatorStarted) return;
+
+            const avgRodInsertion = (state.rr + state.usp + state.ar) / 3.0;
+
+            if (state.az5Triggered && !state.az5SignalCut) {
+                if (state.temp > 800 || state.power > 3500) {
+                    state.rodsJammed = true;
+                }
+
+                const dropSpeed = 2.4; 
+                let targetInsertion = state.rodsJammed ? 45 : 100;
+
+                if (state.rr < targetInsertion) state.rr = Math.min(targetInsertion, state.rr + dropSpeed);
+                if (state.usp < targetInsertion) state.usp = Math.min(targetInsertion, state.usp + dropSpeed);
+                if (state.ar < targetInsertion) state.ar = Math.min(targetInsertion, state.ar + dropSpeed);
+            }
+
+            const rodReactivity = (100 - avgRodInsertion) * 0.00022 - 0.0080;
+            const voidReactivity = (state.voidFraction / 100.0) * 0.0095;
+            const xenonReactivity = - (state.xenon / 100.0) * 0.0120;
+
+            state.reactivity = rodReactivity + voidReactivity + xenonReactivity;
+
+            const powerMult = 1.0 + (state.reactivity * 12.0);
+            state.power = Math.max(0, state.power * powerMult + (state.reactivity * 450.0));
+
+            if (!state.az5Triggered && !state.rodsJammed && !state.az5SignalCut) {
+                if (state.power > 3250 && state.ar < 100) state.ar += 0.1;
+                if (state.power < 3150 && state.power > 500 && state.ar > 0) state.ar -= 0.1;
+            }
+
+            const targetTemp = 100 + (state.power / 3200.0) * 200.0;
+            state.temp += (targetTemp - state.temp) * 0.05;
+
+            const activePumps = state.pumps.filter(p => p).length;
+            state.flowRate = activePumps * 6.0;
+
+            const heatVsFlowRatio = (state.power / 3200.0) / Math.max(0.1, state.flowRate / 48.0);
+            const targetVoid = Math.min(95.0, Math.max(0, (heatVsFlowRatio * 20.0) + (state.temp > 280 ? (state.temp - 280) * 0.3 : 0)));
+            state.voidFraction += (targetVoid - state.voidFraction) * 0.08;
+
+            const xenonTarget = (state.power / 3200.0) * 3.5;
+            state.xenon += (xenonTarget - state.xenon) * 0.005;
+
+            state.mwe = Math.max(0, Math.round((state.power * 0.3125) * (state.throttle / 100.0)));
+            state.pressure = 30.0 + (state.temp / 300.0) * 35.0;
+
+            if (!state.autoInterlocksBypassed && !state.az5SignalCut) {
+                if (state.power > 3800 || state.temp > 900) {
+                    if (!state.az5Triggered) {
+                        log("AUTOMATIC SCRAM INTERLOCK TRIP: CRITICAL OVERPOWER / OVERTEMP!", "log-alert");
+                        pressAZ5();
+                    }
+                }
+            }
+
+            for (let i = 0; i < 64; i++) {
+                const distanceCenter = Math.sqrt(Math.pow((i%8) - 3.5, 2) + Math.pow(Math.floor(i/8) - 3.5, 2));
+                const spatialFactor = 1.2 - (distanceCenter / 6.0);
+                state.spatialHeat[i] = Math.round(state.temp * spatialFactor + (Math.random()*4 - 2));
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            if (!state.az5Triggered) {
+                document.getElementById('slider-rr').value = state.rr;
+                document.getElementById('slider-usp').value = state.usp;
+                document.getElementById('slider-ar').value = state.ar;
+            }
+            document.getElementById('txt-rr').innerText = `${Math.round(state.rr)}% IN`;
+            document.getElementById('txt-usp').innerText = `${Math.round(state.usp)}% IN`;
+            document.getElementById('txt-ar').innerText = `${Math.round(state.ar)}% IN`;
+
+            document.getElementById('val-pwr').innerText = `${Math.round(state.power)} MWt`;
+            document.getElementById('val-mwe').innerText = `${Math.round(state.mwe)} MWe`;
+            document.getElementById('val-react').innerText = `${state.reactivity >= 0 ? '+' : ''}${state.reactivity.toFixed(4)}`;
+            document.getElementById('val-temp').innerText = `${Math.round(state.temp)} °C`;
+            document.getElementById('val-void').innerText = `${state.voidFraction.toFixed(1)} %`;
+            document.getElementById('val-xenon').innerText = `${state.xenon.toFixed(1)} %`;
+            document.getElementById('val-press').innerText = `${state.pressure.toFixed(1)} bar`;
+            document.getElementById('val-flow').innerText = `${state.flowRate.toFixed(1)} km³/h`;
+
+            document.getElementById('ann-az5').className = 'annunciator ' + (state.az5Triggered ? 'active-red' : '');
+            document.getElementById('ann-sigcut').className = 'annunciator ' + (state.az5SignalCut ? 'active-amber' : '');
+            document.getElementById('ann-jammed').className = 'annunciator ' + (state.rodsJammed ? 'active-red' : '');
+            document.getElementById('ann-void').className = 'annunciator ' + (state.voidFraction > 40 ? 'active-amber' : '');
+            document.getElementById('ann-temp').className = 'annunciator ' + (state.temp > 600 ? 'active-red' : '');
+            document.getElementById('ann-xenon').className = 'annunciator ' + (state.xenon > 5.0 ? 'active-amber' : '');
+
+            document.getElementById('btn-force-crank').style.display = state.rodsJammed ? 'block' : 'none';
+
+            state.pumps.forEach((p, idx) => {
+                const el = document.getElementById(`pump-${idx+1}`);
+                if (el) el.className = `pump-card ${p ? 'on' : ''}`;
+            });
+
+            renderHeatmap();
+            renderCanvas();
+        }
+
+        function renderHeatmap() {
+            const grid = document.getElementById('heatmap');
+            if (grid.children.length === 0) {
+                for (let i = 0; i < 64; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'heat-cell';
+                    cell.id = `cell-${i}`;
+                    grid.appendChild(cell);
+                }
+            }
+
+            for (let i = 0; i < 64; i++) {
+                const cell = document.getElementById(`cell-${i}`);
+                const temp = state.spatialHeat[i];
+                cell.innerText = temp;
+                
+                let hue = Math.max(0, 120 - (temp - 200) * 0.25);
+                if (temp > 1000) hue = 0;
+                cell.style.backgroundColor = `hsl(${hue}, 80%, ${Math.min(60, temp/25)}%)`;
+                cell.style.color = temp > 500 ? '#fff' : 'rgba(255,255,255,0.6)';
+            }
+        }
+
+        let animFrame = 0;
+        function renderCanvas() {
+            const cvs = document.getElementById('plantCanvas');
+            if (!cvs) return;
+            const ctx = cvs.getContext('2d');
+            
+            cvs.width = cvs.clientWidth;
+            cvs.height = cvs.clientHeight;
+            
+            const w = cvs.width;
+            const h = cvs.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.strokeStyle = '#18241e';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < w; x += 30) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 30) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#3a5243';
+            ctx.lineWidth = 4;
+            ctx.fillStyle = '#141f18';
+            ctx.fillRect(w * 0.32, h * 0.25, w * 0.36, h * 0.55);
+            ctx.strokeRect(w * 0.32, h * 0.25, w * 0.36, h * 0.55);
+
+            const glowIntensity = Math.min(1, state.power / 4000);
+            ctx.fillStyle = `rgba(255, ${Math.max(0, 255 - glowIntensity*255)}, 0, ${glowIntensity * 0.35})`;
+            ctx.fillRect(w * 0.32, h * 0.25, w * 0.36, h * 0.55);
+
+            const avgRods = (state.rr + state.usp + state.ar) / 3.0;
+            const rodBottomY = h * 0.25 + (avgRods / 100.0) * (h * 0.45);
+            
+            ctx.fillStyle = state.rodsJammed ? '#ff3333' : '#00ff66';
+            for (let r = 0; r < 7; r++) {
+                const rx = w * 0.36 + r * (w * 0.04);
+                ctx.fillRect(rx, h * 0.25, 5, rodBottomY - (h * 0.25));
+            }
+
+            animFrame += (state.flowRate / 48.0) * 2.5;
+
+            ctx.strokeStyle = '#00e5ff';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.15, h * 0.75);
+            ctx.lineTo(w * 0.32, h * 0.75);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ff9900';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.68, h * 0.35);
+            ctx.lineTo(w * 0.85, h * 0.35);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.lineDashOffset = -animFrame;
+            
+            ctx.beginPath();
+            ctx.moveTo(w * 0.15, h * 0.75);
+            ctx.lineTo(w * 0.32, h * 0.75);
+            ctx.moveTo(w * 0.68, h * 0.35);
+            ctx.lineTo(w * 0.85, h * 0.35);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#a3c2b2';
+            ctx.font = '11px monospace';
+            ctx.fillText("RBMK-1000 CORE VESSEL", w * 0.38, h * 0.21);
+            ctx.fillText(`FLOW: ${state.flowRate.toFixed(1)} km³/h`, w * 0.15, h * 0.71);
+            ctx.fillText(`STEAM OUT: ${Math.round(state.power)} MWt`, w * 0.68, h * 0.31);
+        }
+
+        function loadPreset(preset) {
+            state.az5Triggered = false;
+            state.rodsJammed = false;
+            
+            if (preset === 'STEADY') {
+                state.power = 3200;
+                state.temp = 285;
+                state.rr = 85;
+                state.usp = 90;
+                state.ar = 80;
+                state.xenon = 2.1;
+                state.pumps = [true, true, true, true, true, true, true, true];
+                log("Preset loaded: Normal Steady Operation (3200 MWt / 1000 MWe).");
+            } else if (preset === 'XENON_PIT') {
+                state.power = 200;
+                state.temp = 180;
+                state.rr = 95;
+                state.usp = 95;
+                state.ar = 90;
+                state.xenon = 8.5;
+                log("Preset loaded: 1986 Xenon Pit Challenge (High Xenon, Low Power).", "log-warn");
+            } else if (preset === 'CRITICAL_RUNAWAY') {
+                state.power = 3900;
+                state.temp = 750;
+                state.rr = 10;
+                state.usp = 20;
+                state.ar = 10;
+                state.xenon = 0.5;
+                log("Preset loaded: Critical Thermal Runaway!", "log-alert");
+            }
+            updateUI();
+        }
+
+        setInterval(physicsStep, 250);
+        window.addEventListener('resize', renderCanvas);
+        loadPreset('STEADY');
+    </script>
+</body>
+</html>

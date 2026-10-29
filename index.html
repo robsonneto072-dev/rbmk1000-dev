@@ -776,7 +776,7 @@
                 const temp = state.spatialHeat[i];
                 cell.innerText = temp;
                 
-                let hue = Math.max(0, 120 - (temp - 200) * 0.25);
+                let hue = Math.max(0, 120 - (temp - 200) * 0.25); 
                 if (temp > 1000) hue = 0;
                 cell.style.backgroundColor = `hsl(${hue}, 80%, ${Math.min(60, temp/25)}%)`;
                 cell.style.color = temp > 500 ? '#fff' : 'rgba(255,255,255,0.6)';

@@ -1,12 +1,11 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
-<head> 
-    <meta name="google-site-verification" content="<meta name="google-site-verification" content="9-Ad-_XruRd6MNSwRmbSvt7gsVjKmRkFQbf_wmpBDUU" /> 
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RBMK-1000 Control Console & Reactor Simulator</title> 
+    <title>RBMK-1000 Control Console & Reactor Simulator</title>
     <style>
-        :root { 
+        :root {
             --bg-color: #121915;
             --panel-bg: #1c2620;
             --panel-border: #2d3e34;
@@ -176,6 +175,17 @@
         .annunciator.active-red { background: #660000; color: #ff9999; border-color: #ff3333; box-shadow: 0 0 6px #ff3333; }
         .annunciator.active-amber { background: #553300; color: #ffcc66; border-color: #ff9900; box-shadow: 0 0 6px #ff9900; }
 
+        /* Mode Toggle & Refuel Controls */
+        .mode-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #151f1a;
+            padding: 6px 10px;
+            border: 1px solid #25362c;
+            border-radius: 3px;
+        }
+
         /* Rod Controls (Left Column, below SCRAM) */
         .rod-group {
             background: #151f1a;
@@ -190,6 +200,30 @@
         .rod-slider { width: 100%; accent-color: var(--accent-green); cursor: pointer; }
         .rod-btns { display: flex; gap: 4px; }
         .rod-btns .btn { flex: 1; padding: 2px 4px; font-size: 0.7rem; }
+
+        .rod-selector-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+
+        .rod-select-btn {
+            background: #111814;
+            border: 1px solid #223027;
+            color: #7a8e83;
+            font-size: 0.65rem;
+            font-weight: bold;
+            padding: 4px;
+            text-align: center;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+        .rod-select-btn.selected {
+            background: #004411;
+            color: #66ff99;
+            border-color: #00ff66;
+        }
 
         /* Emergency Panel */
         .az5-panel {
@@ -234,24 +268,34 @@
         .heatmap-grid {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
-            gap: 3px;
+            gap: 4px;
             background: #0a0f0c;
             padding: 6px;
             border-radius: 4px;
             border: 1px solid var(--panel-border);
         }
 
-        .heat-cell {
+        .grid-cell {
             aspect-ratio: 1;
-            border-radius: 2px;
+            border-radius: 3px;
             background: #111;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             font-size: 0.55rem;
-            color: rgba(255,255,255,0.4);
+            color: rgba(255,255,255,0.7);
             font-weight: bold;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: transform 0.1s ease;
         }
+        .grid-cell:hover { transform: scale(1.05); z-index: 2; }
+        
+        /* Refuel Mode Colors */
+        .grid-cell.refuel-ok { background: #004411; color: #66ff99; border-color: #00ff66; }
+        .grid-cell.refuel-need { background: #660000; color: #ff9999; border-color: #ff3333; box-shadow: 0 0 6px rgba(255,51,51,0.6); }
+        .grid-cell.refuel-selected { border: 2px solid #00e5ff !important; box-shadow: 0 0 8px #00e5ff; }
 
         .pump-grid {
             display: grid;
@@ -310,7 +354,7 @@
     </header>
 
     <div class="main-grid">
-        <!-- LEFT PANEL: Emergency Protection & Control Rod Sticks Below -->
+        <!-- LEFT PANEL: Emergency Protection & Control Rod Drives -->
         <div class="panel">
             <div class="panel-title">Emergency Protection</div>
 
@@ -334,13 +378,24 @@
                 </div>
             </div>
 
-            <!-- CONTROL ROD STICKS LOCATED DIRECTLY BELOW SCRAM FOR PC SUPPORT -->
-            <div class="panel-title">Control Rod Drives</div>
+            <!-- CONTROL ROD DRIVES WITH INDIVIDUAL ROD SELECTION -->
+            <div class="panel-title">Control Rod Selection & Drives</div>
+
+            <div class="rod-selector-grid">
+                <div class="rod-select-btn selected" id="rod-sel-all" onclick="selectRodChannel('all')">ALL</div>
+                <div class="rod-select-btn" id="rod-sel-1" onclick="selectRodChannel(1)">ROD 1</div>
+                <div class="rod-select-btn" id="rod-sel-2" onclick="selectRodChannel(2)">ROD 2</div>
+                <div class="rod-select-btn" id="rod-sel-3" onclick="selectRodChannel(3)">ROD 3</div>
+                <div class="rod-select-btn" id="rod-sel-4" onclick="selectRodChannel(4)">ROD 4</div>
+                <div class="rod-select-btn" id="rod-sel-5" onclick="selectRodChannel(5)">ROD 5</div>
+                <div class="rod-select-btn" id="rod-sel-6" onclick="selectRodChannel(6)">ROD 6</div>
+                <div class="rod-select-btn" id="rod-sel-7" onclick="selectRodChannel(7)">ROD 7</div>
+            </div>
             
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div class="rod-group">
                     <div class="rod-header">
-                        <span>Manual (RR)</span>
+                        <span id="lbl-selected-channel">Manual (RR) - All Rods</span>
                         <span id="txt-rr">85% IN</span>
                     </div>
                     <input type="range" id="slider-rr" class="rod-slider" min="0" max="100" value="85" oninput="manualRodChange('rr', this.value)">
@@ -381,7 +436,7 @@
             </div>
         </div>
 
-        <!-- CENTER PANEL: Primary Schematic, Alarm Panel on top of Thermal Map -->
+        <!-- CENTER PANEL: Primary Schematic, Alarm Panel, 8x8 Grid & Log -->
         <div class="panel" style="gap:10px;">
             <div class="panel-title">
                 <span>Primary Coolant & Steam Flow Schematic</span>
@@ -394,7 +449,7 @@
                 <canvas id="plantCanvas"></canvas>
             </div>
 
-            <!-- ALARM ANNUNCIATOR PANEL ON TOP OF THERMAL MAP -->
+            <!-- ALARM ANNUNCIATOR PANEL -->
             <div class="panel-title">Alarm Annunciator Panel</div>
             <div class="annunciator-grid">
                 <div class="annunciator" id="ann-az5">AZ-5 ACTIVE</div>
@@ -405,14 +460,27 @@
                 <div class="annunciator" id="ann-xenon">XENON PIT</div>
             </div>
 
-            <div class="panel-title">Core Thermal & Flux Spatial Grid (8x8)</div>
+            <!-- 8x8 GRID TOGGLE: THERMAL MAP vs REFUEL MODE -->
+            <div class="panel-title">Core Grid Matrix & Refueling</div>
+            
+            <div class="mode-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button class="btn btn-active" id="btn-toggle-grid-mode" onclick="toggleGridMode()">TOGGLE MODE: THERMAL MAP</button>
+                    <span id="lbl-grid-desc" style="font-size:0.7rem; color:#7a8e83;">Displaying Core Temperatures (°C)</span>
+                </div>
+                <div id="refuel-controls" style="display:none; gap:6px;">
+                    <button class="btn btn-active" onclick="refuelSelectedRods()">REFUEL SELECTED RODS</button>
+                    <button class="btn btn-warning" onclick="selectAllDepletedRods()">SELECT ALL RED</button>
+                </div>
+            </div>
+
             <div class="heatmap-grid" id="heatmap"></div>
 
             <div class="panel-title">Console System Log</div>
             <div class="log-box" id="logBox"></div>
         </div>
 
-        <!-- RIGHT PANEL: MCPs on top, Turbine Throttle above Telemetry -->
+        <!-- RIGHT PANEL: MCPs, Turbine Throttle, Telemetry -->
         <div class="panel">
             <div class="panel-title">Main Circulation Pumps (MCP 1-8)</div>
             <div class="pump-grid">
@@ -488,6 +556,11 @@
             rr: 85,
             usp: 90,
             ar: 80,
+            individualRods: [85, 85, 85, 85, 85, 85, 85],
+            selectedRodChannel: 'all',
+            gridMode: 'thermal', // 'thermal' or 'refuel'
+            channelBurnup: new Array(64).fill(15.0),
+            selectedGridRods: new Array(64).fill(false),
             az5Triggered: false,
             az5SignalCut: false,
             autoInterlocksBypassed: false,
@@ -495,6 +568,11 @@
             pumps: [true, true, true, true, true, true, true, true],
             spatialHeat: new Array(64).fill(285)
         };
+
+        // Initialize burnup levels
+        for(let i=0; i<64; i++) {
+            state.channelBurnup[i] = Math.round(10 + Math.random() * 78);
+        }
 
         let audioCtx = null;
         let simulatorStarted = false;
@@ -542,6 +620,87 @@
             box.scrollTop = box.scrollHeight;
         }
 
+        function toggleGridMode() {
+            if (state.gridMode === 'thermal') {
+                state.gridMode = 'refuel';
+                document.getElementById('btn-toggle-grid-mode').innerText = "TOGGLE MODE: REFUEL MODE";
+                document.getElementById('btn-toggle-grid-mode').className = "btn btn-warning";
+                document.getElementById('lbl-grid-desc').innerText = "GREEN: DON'T NEED REFUEL | RED: NEED REFUEL (>85%)";
+                document.getElementById('refuel-controls').style.display = "flex";
+                log("Grid Matrix set to REFUEL MODE. Click rods to select for targeted refueling.", "log-warn");
+            } else {
+                state.gridMode = 'thermal';
+                document.getElementById('btn-toggle-grid-mode').innerText = "TOGGLE MODE: THERMAL MAP";
+                document.getElementById('btn-toggle-grid-mode').className = "btn btn-active";
+                document.getElementById('lbl-grid-desc').innerText = "Displaying Core Temperatures (°C)";
+                document.getElementById('refuel-controls').style.display = "none";
+                log("Grid Matrix set to THERMAL MAP.");
+            }
+            playSynthSound(500, 0.1);
+            renderHeatmap();
+        }
+
+        function handleGridCellClick(idx) {
+            if (state.gridMode === 'refuel') {
+                state.selectedGridRods[idx] = !state.selectedGridRods[idx];
+                playSynthSound(state.selectedGridRods[idx] ? 600 : 300, 0.05);
+                renderHeatmap();
+            }
+        }
+
+        function selectAllDepletedRods() {
+            let count = 0;
+            for (let i = 0; i < 64; i++) {
+                if (state.channelBurnup[i] >= 85.0) {
+                    state.selectedGridRods[i] = true;
+                    count++;
+                }
+            }
+            log(`Selected ${count} depleted (RED) rod assemblies for refueling.`, "log-warn");
+            playSynthSound(450, 0.15);
+            renderHeatmap();
+        }
+
+        function refuelSelectedRods() {
+            let refueledCount = 0;
+            for (let i = 0; i < 64; i++) {
+                if (state.selectedGridRods[i]) {
+                    state.channelBurnup[i] = 0.0;
+                    state.selectedGridRods[i] = false;
+                    refueledCount++;
+                }
+            }
+
+            if (refueledCount > 0) {
+                playSynthSound(520, 0.3, 'sine');
+                log(`Refueling Machine executed: ${refueledCount} selected fuel assembly channel(s) replaced with fresh U-235!`, "log-warn");
+            } else {
+                log("No rods selected! Click on individual rods in the grid first.", "log-alert");
+            }
+            renderHeatmap();
+            updateUI();
+        }
+
+        function selectRodChannel(chan) {
+            state.selectedRodChannel = chan;
+            const allBtns = document.querySelectorAll('.rod-select-btn');
+            allBtns.forEach(b => b.classList.remove('selected'));
+            
+            const selEl = document.getElementById(`rod-sel-${chan}`);
+            if (selEl) selEl.classList.add('selected');
+
+            const lbl = document.getElementById('lbl-selected-channel');
+            if (chan === 'all') {
+                lbl.innerText = 'Manual (RR) - All Rods';
+                document.getElementById('slider-rr').value = state.rr;
+            } else {
+                lbl.innerText = `Manual (RR) - Rod Channel ${chan}`;
+                document.getElementById('slider-rr').value = state.individualRods[chan - 1];
+            }
+            playSynthSound(400, 0.05);
+            updateUI();
+        }
+
         function manualRodChange(group, val) {
             val = parseFloat(val);
             if (state.rodsJammed) {
@@ -550,13 +709,28 @@
                 return;
             }
 
-            state[group] = val;
+            if (group === 'rr') {
+                if (state.selectedRodChannel === 'all') {
+                    state.rr = val;
+                    for (let i = 0; i < 7; i++) state.individualRods[i] = val;
+                } else {
+                    const idx = state.selectedRodChannel - 1;
+                    state.individualRods[idx] = val;
+                    state.rr = state.individualRods.reduce((a, b) => a + b, 0) / 7;
+                }
+            } else {
+                state[group] = val;
+            }
+
             playSynthSound(300 + (100 - val) * 3, 0.05, 'triangle');
             updateUI();
         }
 
         function stepRod(group, delta) {
-            let nVal = Math.min(100, Math.max(0, state[group] + delta));
+            let currentVal = group === 'rr' && state.selectedRodChannel !== 'all' 
+                ? state.individualRods[state.selectedRodChannel - 1] 
+                : state[group];
+            let nVal = Math.min(100, Math.max(0, currentVal + delta));
             manualRodChange(group, nVal);
         }
 
@@ -569,6 +743,7 @@
             state.rr = targetVal;
             state.usp = targetVal;
             state.ar = targetVal;
+            for (let i = 0; i < 7; i++) state.individualRods[i] = targetVal;
             playSynthSound(targetVal === 100 ? 220 : 580, 0.15, 'square');
             log(`All control rod groups set to ${targetVal}% IN.`);
             updateUI();
@@ -635,6 +810,7 @@
             state.rr = Math.min(100, state.rr + 10);
             state.usp = Math.min(100, state.usp + 10);
             state.ar = Math.min(100, state.ar + 10);
+            for (let i = 0; i < 7; i++) state.individualRods[i] = Math.min(100, state.individualRods[i] + 10);
 
             log(`Force crank applied: Rods inserted to ${Math.round((state.rr + state.usp + state.ar)/3)}% IN.`, "log-warn");
 
@@ -670,16 +846,28 @@
                 const dropSpeed = 2.4; 
                 let targetInsertion = state.rodsJammed ? 45 : 100;
 
-                if (state.rr < targetInsertion) state.rr = Math.min(targetInsertion, state.rr + dropSpeed);
+                if (state.rr < targetInsertion) {
+                    state.rr = Math.min(targetInsertion, state.rr + dropSpeed);
+                    for (let i = 0; i < 7; i++) state.individualRods[i] = Math.min(targetInsertion, state.individualRods[i] + dropSpeed);
+                }
                 if (state.usp < targetInsertion) state.usp = Math.min(targetInsertion, state.usp + dropSpeed);
                 if (state.ar < targetInsertion) state.ar = Math.min(targetInsertion, state.ar + dropSpeed);
             }
 
+            if (state.power > 100) {
+                for(let i=0; i<64; i++) {
+                    state.channelBurnup[i] = Math.min(100.0, state.channelBurnup[i] + (state.power / 3200) * 0.015);
+                }
+            }
+
+            const avgBurnup = state.channelBurnup.reduce((a,b)=>a+b, 0) / 64.0;
+
             const rodReactivity = (100 - avgRodInsertion) * 0.00022 - 0.0080;
             const voidReactivity = (state.voidFraction / 100.0) * 0.0095;
             const xenonReactivity = - (state.xenon / 100.0) * 0.0120;
+            const fuelPenalty = - (avgBurnup / 100.0) * 0.0040;
 
-            state.reactivity = rodReactivity + voidReactivity + xenonReactivity;
+            state.reactivity = rodReactivity + voidReactivity + xenonReactivity + fuelPenalty;
 
             const powerMult = 1.0 + (state.reactivity * 12.0);
             state.power = Math.max(0, state.power * powerMult + (state.reactivity * 450.0));
@@ -725,11 +913,17 @@
 
         function updateUI() {
             if (!state.az5Triggered) {
-                document.getElementById('slider-rr').value = state.rr;
+                if (state.selectedRodChannel === 'all') {
+                    document.getElementById('slider-rr').value = state.rr;
+                } else {
+                    document.getElementById('slider-rr').value = state.individualRods[state.selectedRodChannel - 1];
+                }
                 document.getElementById('slider-usp').value = state.usp;
                 document.getElementById('slider-ar').value = state.ar;
             }
-            document.getElementById('txt-rr').innerText = `${Math.round(state.rr)}% IN`;
+            
+            const currentRRVal = state.selectedRodChannel === 'all' ? state.rr : state.individualRods[state.selectedRodChannel - 1];
+            document.getElementById('txt-rr').innerText = `${Math.round(currentRRVal)}% IN`;
             document.getElementById('txt-usp').innerText = `${Math.round(state.usp)}% IN`;
             document.getElementById('txt-ar').innerText = `${Math.round(state.ar)}% IN`;
 
@@ -765,21 +959,44 @@
             if (grid.children.length === 0) {
                 for (let i = 0; i < 64; i++) {
                     const cell = document.createElement('div');
-                    cell.className = 'heat-cell';
+                    cell.className = 'grid-cell';
                     cell.id = `cell-${i}`;
+                    cell.onclick = () => handleGridCellClick(i);
                     grid.appendChild(cell);
                 }
             }
 
             for (let i = 0; i < 64; i++) {
                 const cell = document.getElementById(`cell-${i}`);
-                const temp = state.spatialHeat[i];
-                cell.innerText = temp;
                 
-                let hue = Math.max(0, 120 - (temp - 200) * 0.25); 
-                if (temp > 1000) hue = 0;
-                cell.style.backgroundColor = `hsl(${hue}, 80%, ${Math.min(60, temp/25)}%)`;
-                cell.style.color = temp > 500 ? '#fff' : 'rgba(255,255,255,0.6)';
+                if (state.gridMode === 'thermal') {
+                    const temp = state.spatialHeat[i];
+                    cell.innerText = `${temp}°C`;
+                    cell.className = 'grid-cell';
+                    
+                    let hue = Math.max(0, 120 - (temp - 200) * 0.25);
+                    if (temp > 1000) hue = 0;
+                    cell.style.backgroundColor = `hsl(${hue}, 80%, ${Math.min(60, temp/25)}%)`;
+                    cell.style.color = temp > 500 ? '#fff' : 'rgba(255,255,255,0.7)';
+                } else {
+                    const burn = state.channelBurnup[i];
+                    cell.style.backgroundColor = '';
+                    
+                    let classList = 'grid-cell ';
+                    if (burn >= 85.0) {
+                        classList += 'refuel-need';
+                        cell.innerText = `ROD ${i+1}\nNEED`;
+                    } else {
+                        classList += 'refuel-ok';
+                        cell.innerText = `ROD ${i+1}\nOK`;
+                    }
+
+                    if (state.selectedGridRods[i]) {
+                        classList += ' refuel-selected';
+                    }
+
+                    cell.className = classList;
+                }
             }
         }
 
@@ -816,12 +1033,12 @@
             ctx.fillStyle = `rgba(255, ${Math.max(0, 255 - glowIntensity*255)}, 0, ${glowIntensity * 0.35})`;
             ctx.fillRect(w * 0.32, h * 0.25, w * 0.36, h * 0.55);
 
-            const avgRods = (state.rr + state.usp + state.ar) / 3.0;
-            const rodBottomY = h * 0.25 + (avgRods / 100.0) * (h * 0.45);
-            
-            ctx.fillStyle = state.rodsJammed ? '#ff3333' : '#00ff66';
             for (let r = 0; r < 7; r++) {
                 const rx = w * 0.36 + r * (w * 0.04);
+                const rodVal = state.individualRods[r];
+                const rodBottomY = h * 0.25 + (rodVal / 100.0) * (h * 0.45);
+
+                ctx.fillStyle = (state.selectedRodChannel === (r + 1)) ? '#00e5ff' : (state.rodsJammed ? '#ff3333' : '#00ff66');
                 ctx.fillRect(rx, h * 0.25, 5, rodBottomY - (h * 0.25));
             }
 
@@ -872,6 +1089,8 @@
                 state.usp = 90;
                 state.ar = 80;
                 state.xenon = 2.1;
+                for (let i = 0; i < 7; i++) state.individualRods[i] = 85;
+                for (let i = 0; i < 64; i++) state.channelBurnup[i] = Math.round(10 + Math.random() * 40);
                 state.pumps = [true, true, true, true, true, true, true, true];
                 log("Preset loaded: Normal Steady Operation (3200 MWt / 1000 MWe).");
             } else if (preset === 'XENON_PIT') {
@@ -881,6 +1100,8 @@
                 state.usp = 95;
                 state.ar = 90;
                 state.xenon = 8.5;
+                for (let i = 0; i < 7; i++) state.individualRods[i] = 95;
+                for (let i = 0; i < 64; i++) state.channelBurnup[i] = Math.round(75 + Math.random() * 20);
                 log("Preset loaded: 1986 Xenon Pit Challenge (High Xenon, Low Power).", "log-warn");
             } else if (preset === 'CRITICAL_RUNAWAY') {
                 state.power = 3900;
@@ -889,6 +1110,7 @@
                 state.usp = 20;
                 state.ar = 10;
                 state.xenon = 0.5;
+                for (let i = 0; i < 7; i++) state.individualRods[i] = 10;
                 log("Preset loaded: Critical Thermal Runaway!", "log-alert");
             }
             updateUI();
@@ -900,3 +1122,5 @@
     </script>
 </body>
 </html>
+      
+           
